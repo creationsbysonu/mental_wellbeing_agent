@@ -1,9 +1,13 @@
 import streamlit as st
-from openai import OpenAI
 import os
+import google.generativeai as genai
+from dotenv import load_dotenv
 
 # No Docker usage needed for this app
 os.environ["AUTOGEN_USE_DOCKER"] = "0"
+
+# Load environment variables from .env
+load_dotenv()
 
 if 'output' not in st.session_state:
     st.session_state.output = {
@@ -12,8 +16,13 @@ if 'output' not in st.session_state:
         'followup': ''
     }
 
-st.sidebar.title("OpenAI API Key")
-api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
+api_key = os.getenv("GOOGLE_API_KEY", "")
+
+# Sidebar status (do not prompt for key; just show status)
+if api_key:
+    st.sidebar.success("Gemini API key loaded from .env")
+else:
+    st.sidebar.error("Gemini API key not found in .env (GOOGLE_API_KEY)")
 
 st.sidebar.warning("""
 ## ⚠️ Important Notice
@@ -68,7 +77,7 @@ current_symptoms = st.multiselect(
 
 if st.button("Get Support Plan"):
     if not api_key:
-        st.error("Please enter your OpenAI API key.")
+        st.error("Gemini API key not found. Please add GOOGLE_API_KEY to your .env file.")
     else:
         with st.spinner('🤖 AI Agents are analyzing your situation...'):
             try:
@@ -123,18 +132,16 @@ if st.button("Get Support Plan"):
                     Focus on building sustainable habits that integrate with their lifestyle and values. Emphasize progress over perfection and teach skills for self-directed care.
                     """
                 }
-                # Simple, reliable multi-step orchestration using OpenAI Chat API
-                client = OpenAI(api_key=api_key)
+                # Simple, reliable multi-step orchestration using Google Generative AI SDK
+                genai.configure(api_key=api_key)
 
                 def call_llm(system_prompt: str, user_task: str) -> str:
-                    resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_task},
-                        ],
+                    model = genai.GenerativeModel(
+                        model_name="gemini-2.5-flash",
+                        system_instruction=system_prompt,
                     )
-                    return resp.choices[0].message.content or ""
+                    resp = model.generate_content(user_task)
+                    return getattr(resp, "text", "")
 
                 # 1) Assessment
                 assessment_context = ""  # No prior context
